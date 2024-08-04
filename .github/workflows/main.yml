@@ -69,8 +69,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs: python-ci
     steps:
-      - uses: actions/download-artifact@v4
-        name: Download python artifacts
+      - name: Download python artifacts
+        uses: actions/download-artifact@v4
         with:
           name: python-artifacts
           path: .
@@ -94,7 +94,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     name: Helm CI
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download helm artifacts
+        uses: actions/download-artifact@v4
         with:
           name: helm-artifacts
           path: .
