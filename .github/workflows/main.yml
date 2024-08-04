@@ -122,7 +122,7 @@ jobs:
 
   deploy-helm:
     name: Deploy Helm
-    needs: [helm-ci, docker-ci]
+    needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
