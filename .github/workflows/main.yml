@@ -90,7 +90,6 @@ jobs:
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
-
     runs-on: ubuntu-latest
     needs: python-ci
     if: github.ref_name == 'main'
@@ -132,3 +131,6 @@ jobs:
 
       - name: Set Up Helm
         uses: azure/setup-helm@v4.2.0
+
+      - name: Deploy Helm
+        run: helm upgrade --install todoapp ./todoapp/ --atomic
