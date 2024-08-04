@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name }} - ${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name}} -${{ github.sha }}
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
 env:
   PythonVersion: 3.8
   DockerImageName: todoapp
+
 
 jobs:
   python-ci:
@@ -50,11 +51,6 @@ jobs:
         run: |
           flake8 . --exit-zero --max-complexity=6
 
-      - name: Verify Helm charts directory
-        run: |
-          echo "Listing contents of helm-charts directory"
-          ls -R ${{ github.workspace }}/helm-charts
-
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -62,67 +58,68 @@ jobs:
           path: .
 
       - name: Upload helm artifacts
-        if: always() && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: helm-artifacts
           path: ${{ github.workspace }}/helm-charts
 
   docker-ci:
-    name: Build and Push Image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: ${{ github.ref_name == 'main' }}
     needs: python-ci
     steps:
-      - name: Download python artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: python-artifacts
-          path: .
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - uses: actions/download-artifact@v4
+      name: Download python artifacts
+      with:
+        name: python-artifacts
+        path: .
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: ./src
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        push: true
+        context: ./src
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
     needs: python-ci
-    if: github.ref == 'refs/heads/main'
-    name: Helm CI
+    if: ${{ github.ref_name == 'main' }}
+    name: helm ci
+
     steps:
-      - name: Download helm artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-artifacts
-          path: .
 
-      - name: Set Up Helm
-        uses: azure/setup-helm@v4.2.0
+    - uses: actions/download-artifact@v4
+      name: Download helm artifacts
+      with:
+        name: helm-artifacts
+        path: .
 
-      - name: Lint helm
-        run: helm lint ./todoapp/
+    - name: Set up Helm
+      uses: azure/setup-helm@v4.2.0
 
-      - name: Template Helm
-        run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
+    - name: Lint Helm
+      run: helm lint ./todoapp/
 
-      - name: Package Helm
-        run: helm package ./todoapp
+    - name: Template Helm
+      run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
 
-      - name: Upload Helm Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: helm-package
-          path: ./*.tgz
+    - name: Package Helm
+      run: helm package ./todoapp
 
+    - name: Upload helm package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: helm-package
+        path: ./*.tgz
+        
   deploy-helm:
     name: Deploy Helm
     needs: [docker-ci, helm-ci]
