@@ -117,20 +117,7 @@ jobs:
     needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Kubernetes
-        uses: engineerd/setup-kind@v0.5.0
-        with:
-          version: v0.11.1
-          config: |
-            kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-              - role: control-plane
-              - role: worker
-
-      - name: Export kubeconfig
-        run: echo "KUBECONFIG=$(kind get kubeconfig-path --name kind)" >> $GITHUB_ENV
-
+    
       - name: Download helm package
         uses: actions/download-artifact@v4
         with:
