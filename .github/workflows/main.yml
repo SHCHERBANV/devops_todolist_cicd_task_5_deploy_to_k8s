@@ -62,7 +62,7 @@ jobs:
           path: .
 
       - name: Upload helm artifacts
-        if: github.ref == 'refs/heads/main'
+        if: always() && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: helm-artifacts
