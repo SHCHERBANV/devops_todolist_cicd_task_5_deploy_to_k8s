@@ -1,6 +1,5 @@
 name: python-deployment
 
-
 run-name: ${{ github.actor }} - ${{ github.ref_name }} - ${{ github.sha }}
 
 on:
@@ -50,6 +49,11 @@ jobs:
       - name: Check Complexity
         run: |
           flake8 . --exit-zero --max-complexity=6
+
+      - name: Verify Helm charts directory
+        run: |
+          echo "Listing contents of helm-charts directory"
+          ls -R ${{ github.workspace }}/helm-charts
 
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
@@ -124,7 +128,8 @@ jobs:
     needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download helm package
+        uses: actions/download-artifact@v4
         with:
           name: helm-package
           path: .
