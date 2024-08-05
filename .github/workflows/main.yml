@@ -32,21 +32,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install coverage flake8
           pip install -r requirements.txt
-
       - name: Run tests
-        run: python manage.py test
-
+        run: |
+          python manage.py test
       - name: Generate Report
         run: |
           coverage run --source='.' manage.py test
           coverage report
-
       - name: Linting
-        run: flake8 . --show-source --statistics --exit-zero
-
+        run: |
+          flake8 . --show-source --statistics --exit-zero
       - name: Check Complexity
-        run: flake8 . --exit-zero --max-complexity=6
-
+        run: |
+          flake8 . --exit-zero --max-complexity=6
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -110,20 +108,40 @@ jobs:
           name: helm-package
           path: ./*.tgz
 
-  deploy-development:
+  deploy-helm:
     needs: [docker-ci, helm-ci]
-    uses: ./.github/workflows/deploy-kind.yml@main
-    with:
-      environment: development
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Kubernetes cluster
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          kind-version: v0.11.1
+          config: ./deploy-kind.yml
 
-  deploy-staging:
-    needs: [docker-ci, helm-ci]
-    uses: ./.github/workflows/deploy-kind.yml
-    with:
-      environment: staging
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
+        with:
+          version: v1.20.0
+
+      - name: Download helm package
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-package
+          path: .
+
+      - name: Set Up Helm
+        uses: azure/setup-helm@v4.2.0
+
+      - name: Port-forward Kubernetes API
+        run: |
+          kubectl port-forward svc/todoapp 8080:80 &
+          sleep 10
+
+      - name: Deploy Helm
+        run: helm upgrade --install todoapp ./*.tgz --atomic
+
+      - name: Verify Deployment
+        run: kubectl get pods
+
+      - name: Cleanup
+        run: kind delete cluster
