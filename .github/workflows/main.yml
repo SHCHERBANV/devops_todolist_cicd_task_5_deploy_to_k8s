@@ -146,6 +146,11 @@ jobs:
         run: |
           kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
+      - name: Wait for Metrics Server
+        run: |
+          echo "Waiting for Metrics Server to be ready..."
+          kubectl wait --for=condition=Available deployment/metrics-server --namespace kube-system --timeout=120s
+
       - name: Helm install dry-run
         run: helm install --dry-run todoapp ./helm-charts/todoapp
 
