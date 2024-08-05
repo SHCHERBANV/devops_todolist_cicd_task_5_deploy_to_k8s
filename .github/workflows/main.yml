@@ -140,7 +140,7 @@ jobs:
           mv ./kind /usr/local/bin/kind
 
       - name: Create kind cluster
-        run: kind create cluster --config=cluster.yml
+        run: kind create cluster --config=cluster/cluster.yml
 
       - name: Install Metrics Server
         run: |
