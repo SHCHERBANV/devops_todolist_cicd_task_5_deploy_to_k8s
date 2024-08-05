@@ -126,7 +126,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Delete existing kind cluster
-        run: kind delete cluster || true
+        run: |
+          kind delete cluster || true
+          while kind get clusters | grep -q 'kind'; do
+            echo "Waiting for kind cluster to delete..."
+            sleep 5
+          done
 
       - name: Set up kind
         uses: engineerd/setup-kind@v0.5.0
