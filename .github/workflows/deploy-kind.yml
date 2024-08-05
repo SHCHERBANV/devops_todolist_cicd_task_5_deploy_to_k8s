@@ -59,7 +59,7 @@ jobs:
         run: |
           POD_NAME=$(kubectl get pods -n kube-system -l component=kube-apiserver -o jsonpath="{.items[0].metadata.name}")
           kubectl port-forward --namespace kube-system pod/$POD_NAME 8080:443 &
-
+      
       - name: Set up KUBECONFIG
         run: |
           mkdir -p $HOME/.kube

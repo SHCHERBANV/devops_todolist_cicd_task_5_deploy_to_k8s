@@ -112,64 +112,18 @@ jobs:
 
   deploy-development:
     needs: [docker-ci, helm-ci]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download helm package artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-package
-          path: .
-
-      - name: Set up kind
-        run: |
-          kind create cluster --name kind-development
-          kubectl cluster-info --context kind-kind-development
-
-      - name: Port forward API server
-        run: kubectl port-forward --namespace kube-system pod/kube-apiserver-kind-control-plane 8080:443 &
-
-      - name: Set up KUBECONFIG
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-        shell: bash
-
-      - name: Deploy Helm chart
-        env:
-          KUBECONFIG: $HOME/.kube/config
-        run: helm upgrade --install todoapp ./*.tgz --atomic --kubeconfig $HOME/.kube/config --kube-apiserver https://localhost:8080
+    uses: ./.github/workflows/deploy-kind.yml@main
+    with:
+      environment: development
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
 
   deploy-staging:
     needs: [docker-ci, helm-ci]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download helm package artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-package
-          path: .
-
-      - name: Set up kind
-        run: |
-          kind create cluster --name kind-staging
-          kubectl cluster-info --context kind-kind-staging
-
-      - name: Port forward API server
-        run: kubectl port-forward --namespace kube-system pod/kube-apiserver-kind-control-plane 8080:443 &
-      
-      - name: Set up KUBECONFIG
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-        shell: bash
-
-      - name: Deploy Helm chart
-        env:
-          KUBECONFIG: $HOME/.kube/config
-        run: helm upgrade --install todoapp ./*.tgz --atomic --kubeconfig $HOME/.kube/config --kube-apiserver https://localhost:8080
-
+    uses: ./.github/workflows/deploy-kind.yml
+    with:
+      environment: staging
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
