@@ -32,3 +32,4 @@ jobs:
 
       - name: Verify deployment
         run: kubectl get pods -n default
+

@@ -10,7 +10,7 @@ on:
 
 env:
   PythonVersion: 3.8
-  DockerImageName: todoapp
+  DockerImageName: ${{ secrets.DOCKERHUB_USERNAME }}/todoapp
 
 jobs:
   python-ci:
@@ -86,7 +86,7 @@ jobs:
         with:
           push: true
           context: ./src
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
+          tags: ${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
