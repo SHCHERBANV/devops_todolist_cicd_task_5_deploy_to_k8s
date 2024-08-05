@@ -1,4 +1,4 @@
-name: Deploy to kind Cluster
+name: Deploy-kind
 
 on:
   workflow_call:
@@ -42,7 +42,7 @@ jobs:
         run: kind delete cluster || true
 
       - name: Create kind cluster
-        run: kind create cluster --config=cluster.yml
+        run: kind create cluster --config=.github/workflows/deploy-kind.yml --name kind --wait 300s
 
       - name: Verify kind cluster
         run: |
@@ -57,8 +57,8 @@ jobs:
 
       - name: Port forward API server
         run: |
-          POD_NAME=$(kubectl get pods -n kube-system -l component=kube-apiserver -o jsonpath="{.items[0].metadata.name}")
-          kubectl port-forward --namespace kube-system pod/$POD_NAME 8080:443 &
+          kubectl port-forward --namespace kube-system svc/kube-apiserver 8080:443 &
+          sleep 10
       
       - name: Set up KUBECONFIG
         run: |

@@ -10,7 +10,7 @@ on:
 
 env:
   PythonVersion: 3.8
-  DockerImageName: todoapp
+  DockerImageName: your-dockerhub-username/todoapp
 
 jobs:
   python-ci:
@@ -71,14 +71,14 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           push: true
           context: ./src
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
+          tags: ${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
@@ -112,36 +112,23 @@ jobs:
     needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Kubernetes cluster
-        uses: engineerd/setup-kind@v0.5.0
+      - name: Call reusable workflow for development
+        uses: ./.github/workflows/deploy-kind.yml
         with:
-          kind-version: v0.11.1
-          config: ./deploy-kind.yml
+          environment: development
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v1
+      - name: Call reusable workflow for staging
+        uses: ./.github/workflows/deploy-kind.yml
         with:
-          version: v1.20.0
+          environment: staging
 
-      - name: Download helm package
-        uses: actions/download-artifact@v4
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v3
         with:
-          name: helm-package
-          path: .
-
-      - name: Set Up Helm
-        uses: azure/setup-helm@v4.2.0
-
-      - name: Port-forward Kubernetes API
-        run: |
-          kubectl port-forward svc/todoapp 8080:80 &
-          sleep 10
-
-      - name: Deploy Helm
-        run: helm upgrade --install todoapp ./*.tgz --atomic
-
-      - name: Verify Deployment
-        run: kubectl get pods
-
-      - name: Cleanup
-        run: kind delete cluster
+          commit-message: "Enhanced CI/CD with Docker and Helm"
+          title: "Enhanced CI/CD with Docker and Helm"
+          body: |
+            This pull request includes:
+            - Docker build and push to DockerHub
+            - Reusable workflow for deploying to kind Kubernetes cluster
+            - Successful workflow run: ${{ github.run_url }}
