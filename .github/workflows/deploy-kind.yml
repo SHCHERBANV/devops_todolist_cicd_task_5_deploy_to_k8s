@@ -1,4 +1,4 @@
-name: Deploy-kind
+name: Deploy to Kind
 
 on:
   workflow_call:
@@ -6,81 +6,28 @@ on:
       environment:
         required: true
         type: string
-        description: 'The environment to deploy to'
-    secrets:
-      DOCKERHUB_USERNAME:
-        required: true
-      DOCKERHUB_PASSWORD:
-        required: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Log in to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Pull Docker image
-        run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/todoapp:${{ github.sha }}
 
       - name: Set up kind
         uses: engineerd/setup-kind@v0.5.0
         with:
           version: v0.11.1
 
-      - name: Delete existing kind cluster
-        run: kind delete cluster || true
-
       - name: Create kind cluster
-        run: kind create cluster --config=.github/workflows/deploy-kind.yml --name kind --wait 300s
-
-      - name: Verify kind cluster
-        run: |
-          kubectl cluster-info
-          kubectl get nodes
-
-      - name: Set Kubernetes context to kind
-        run: kubectl config use-context kind-kind
-
-      - name: Check Kubernetes context
-        run: kubectl config current-context
-
-      - name: Port forward API server
-        run: |
-          kubectl port-forward --namespace kube-system svc/kube-apiserver 8080:443 &
-          sleep 10
-      
-      - name: Set up KUBECONFIG
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
-          chmod 600 $HOME/.kube/config
-        shell: bash
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
-
-      - name: Download helm package
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-package
-          path: .
+        run: kind create cluster --config=cluster.yml
 
       - name: Helm install dry-run
-        run: helm install --dry-run --debug todoapp ./*.tgz --kubeconfig=$HOME/.kube/config --kube-apiserver=https://localhost:8080
+        run: helm install --dry-run todoapp ./helm-charts/todoapp
 
       - name: Helm upgrade install
-        run: helm upgrade --install todoapp ./*.tgz --atomic --kubeconfig=$HOME/.kube/config --kube-apiserver=https://localhost:8080
+        run: helm upgrade --install todoapp ./helm-charts/todoapp --atomic
 
-      - name: Check Kubernetes API server
-        run: curl -k https://localhost:8080/version
+      - name: Verify deployment
+        run: kubectl get pods -n default

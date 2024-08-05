@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name }} - ${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name }} -${{ github.sha }}
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 env:
   PythonVersion: 3.8
-  DockerImageName: your-dockerhub-username/todoapp
+  DockerImageName: todoapp
 
 jobs:
   python-ci:
@@ -32,19 +32,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install coverage flake8
           pip install -r requirements.txt
+
       - name: Run tests
         run: |
           python manage.py test
+
       - name: Generate Report
         run: |
           coverage run --source='.' manage.py test
           coverage report
+
       - name: Linting
         run: |
           flake8 . --show-source --statistics --exit-zero
+
       - name: Check Complexity
         run: |
           flake8 . --exit-zero --max-complexity=6
+
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -52,13 +57,16 @@ jobs:
           path: .
 
       - name: Upload helm artifacts
+        if: github.ref_name == 'main'
         uses: actions/upload-artifact@v4
         with:
           name: helm-artifacts
           path: ${{ github.workspace }}/helm-charts
 
   docker-ci:
+    name: Build and Push Image
     runs-on: ubuntu-latest
+    if: ${{ github.ref_name == 'main' }}
     needs: python-ci
     steps:
       - uses: actions/download-artifact@v4
@@ -71,29 +79,30 @@ jobs:
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           push: true
           context: ./src
-          tags: ${{ env.DockerImageName }}:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
     needs: python-ci
+    if: github.ref_name == 'main'
+    name: Helm CI
     steps:
       - uses: actions/download-artifact@v4
-        name: Download helm artifacts
         with:
           name: helm-artifacts
           path: .
 
-      - name: Set up Helm
+      - name: Set Up Helm
         uses: azure/setup-helm@v4.2.0
 
-      - name: Lint Helm
+      - name: Lint helm
         run: helm lint ./todoapp/
 
       - name: Template Helm
@@ -102,33 +111,51 @@ jobs:
       - name: Package Helm
         run: helm package ./todoapp
 
-      - name: Upload helm package artifact
+      - name: Upload Helm Artifact
         uses: actions/upload-artifact@v4
         with:
           name: helm-package
           path: ./*.tgz
 
-  deploy-helm:
+  deploy-to-kind:
     needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
+    if: ${{ github.ref_name == 'main' }}
     steps:
-      - name: Call reusable workflow for development
-        uses: ./.github/workflows/deploy-kind.yml
-        with:
-          environment: development
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Call reusable workflow for staging
-        uses: ./.github/workflows/deploy-kind.yml
+      - name: Set up kind
+        uses: engineerd/setup-kind@v0.5.0
         with:
-          environment: staging
+          version: v0.11.1
 
-      - name: Create pull request
-        uses: peter-evans/create-pull-request@v3
+      - name: Create kind cluster
+        run: kind create cluster --config=cluster.yml
+
+      - name: Helm install dry-run
+        run: helm install --dry-run todoapp ./helm-charts/todoapp
+
+      - name: Helm upgrade install
+        run: helm upgrade --install todoapp ./helm-charts/todoapp --atomic
+
+      - name: Verify deployment
+        run: kubectl get pods -n default
+
+      - name: Upload Kind Cluster Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          commit-message: "Enhanced CI/CD with Docker and Helm"
-          title: "Enhanced CI/CD with Docker and Helm"
-          body: |
-            This pull request includes:
-            - Docker build and push to DockerHub
-            - Reusable workflow for deploying to kind Kubernetes cluster
-            - Successful workflow run: ${{ github.run_url }}
+          name: kind-artifacts
+          path: ./kind-artifacts
+
+  call-reusable-workflow-dev:
+    needs: deploy-to-kind
+    uses: ./.github/workflows/deploy-kind.yml
+    with:
+      environment: development
+
+  call-reusable-workflow-staging:
+    needs: deploy-to-kind
+    uses: ./.github/workflows/deploy-kind.yml
+    with:
+      environment: staging
