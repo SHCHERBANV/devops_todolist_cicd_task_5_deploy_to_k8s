@@ -38,6 +38,9 @@ jobs:
         with:
           version: v0.11.1
 
+      - name: Delete existing kind cluster
+        run: kind delete cluster || true
+
       - name: Create kind cluster
         run: kind create cluster --config=cluster.yml
 
@@ -48,6 +51,12 @@ jobs:
 
       - name: Set Kubernetes context to kind
         run: kubectl config use-context kind-kind
+
+      - name: Check Kubernetes context
+        run: kubectl config current-context
+
+      - name: Check Kubernetes API server
+        run: curl -k https://localhost:6443/version
 
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
