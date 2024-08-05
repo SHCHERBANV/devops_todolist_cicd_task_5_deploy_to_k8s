@@ -164,6 +164,11 @@ jobs:
             sleep 30
           done
 
+      - name: Install HorizontalPodAutoscaler CRD
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/metrics/hpa-rbac.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/metrics/hpa-v2.yaml
+
       - name: Helm install dry-run
         run: helm install --dry-run todoapp ./helm-charts/todoapp
 
