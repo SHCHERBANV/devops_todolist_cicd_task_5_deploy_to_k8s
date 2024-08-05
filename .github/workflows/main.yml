@@ -149,8 +149,10 @@ jobs:
       - name: Wait for Metrics Server
         run: |
           echo "Waiting for Metrics Server to be ready..."
-          sleep 60
-          kubectl wait --for=condition=available --timeout=600s deployment/metrics-server -n kube-system
+          while [[ $(kubectl get pods -n kube-system -l k8s-app=metrics-server -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]; do
+            echo "Waiting for Metrics Server to be ready..."
+            sleep 30
+          done
 
       - name: Helm install dry-run
         run: helm install --dry-run todoapp ./helm-charts/todoapp
