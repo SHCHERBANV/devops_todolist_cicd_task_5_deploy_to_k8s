@@ -34,8 +34,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: |
-          python manage.py test
+        run: python manage.py test
 
       - name: Generate Report
         run: |
@@ -43,12 +42,10 @@ jobs:
           coverage report
 
       - name: Linting
-        run: |
-          flake8 . --show-source --statistics --exit-zero
+        run: flake8 . --show-source --statistics --exit-zero
 
       - name: Check Complexity
-        run: |
-          flake8 . --exit-zero --max-complexity=6
+        run: flake8 . --exit-zero --max-complexity=6
 
       - name: Upload python artifacts
         uses: actions/upload-artifact@v4
@@ -113,20 +110,66 @@ jobs:
           name: helm-package
           path: ./*.tgz
 
-  deploy-helm:
+  deploy-development:
     needs: [docker-ci, helm-ci]
     runs-on: ubuntu-latest
     steps:
-    
-      - name: Download helm package
+      - name: Download helm package artifact
         uses: actions/download-artifact@v4
         with:
           name: helm-package
           path: .
 
-      - name: Set Up Helm
-        uses: azure/setup-helm@v4.2.0
+      - name: Set up kind
+        run: |
+          kind create cluster --name kind-development
+          kubectl cluster-info --context kind-kind-development
 
-      - name: Deploy Helm
-        run: helm upgrade --install todoapp ./*.tgz --atomic
+      - name: Port forward API server
+        run: kubectl port-forward --namespace kube-system pod/kube-apiserver-kind-control-plane 8080:443 &
 
+      - name: Set up KUBECONFIG
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+        shell: bash
+
+      - name: Deploy Helm chart
+        env:
+          KUBECONFIG: $HOME/.kube/config
+        run: helm upgrade --install todoapp ./*.tgz --atomic --kubeconfig $HOME/.kube/config --kube-apiserver https://localhost:8080
+
+  deploy-staging:
+    needs: [docker-ci, helm-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download helm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-package
+          path: .
+
+      - name: Set up kind
+        run: |
+          kind create cluster --name kind-staging
+          kubectl cluster-info --context kind-kind-staging
+
+      - name: Port forward API server
+        run: kubectl port-forward --namespace kube-system pod/kube-apiserver-kind-control-plane 8080:443 &
+      
+      - name: Set up KUBECONFIG
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+        shell: bash
+
+      - name: Deploy Helm chart
+        env:
+          KUBECONFIG: $HOME/.kube/config
+        run: helm upgrade --install todoapp ./*.tgz --atomic --kubeconfig $HOME/.kube/config --kube-apiserver https://localhost:8080
+
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
