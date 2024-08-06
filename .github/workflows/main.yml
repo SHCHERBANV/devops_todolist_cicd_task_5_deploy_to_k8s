@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name }} -${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name}} -${{ github.sha }}
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 env:
   PythonVersion: 3.8
-  DockerImageName: ${{ secrets.DOCKERHUB_USERNAME }}/todoapp
+  DockerImageName: todoapp
 
 jobs:
   python-ci:
@@ -64,11 +64,12 @@ jobs:
           path: ${{ github.workspace }}/helm-charts
 
   docker-ci:
-    name: Build and Push Image
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
     if: ${{ github.ref_name == 'main' }}
     needs: python-ci
     steps:
+
       - uses: actions/download-artifact@v4
         name: Download python artifacts
         with:
@@ -86,7 +87,7 @@ jobs:
         with:
           push: true
           context: ./src
-          tags: ${{ env.DockerImageName }}:${{ github.sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
     runs-on: ubuntu-latest
@@ -94,6 +95,7 @@ jobs:
     if: github.ref_name == 'main'
     name: Helm CI
     steps:
+
       - uses: actions/download-artifact@v4
         with:
           name: helm-artifacts
@@ -117,81 +119,20 @@ jobs:
           name: helm-package
           path: ./*.tgz
 
-  deploy-to-kind:
-    needs: [docker-ci, helm-ci]
-    runs-on: ubuntu-latest
-    if: ${{ github.ref_name == 'main' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Delete existing kind cluster
-        run: |
-          kind delete cluster || true
-          while kind get clusters | grep -q 'kind'; do
-            echo "Waiting for kind cluster to delete..."
-            sleep 5
-          done
-
-      - name: Install kind
-        run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64
-          chmod +x ./kind
-          mv ./kind /usr/local/bin/kind
-
-      - name: Create kind cluster
-        run: kind create cluster --config=./cluster.yml
-
-      - name: Install Metrics Server
-        run: |
-          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-          kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
-
-      - name: Wait for Metrics Server
-        run: |
-          echo "Waiting for Metrics Server to be ready..."
-          ATTEMPTS=0
-          MAX_ATTEMPTS=20
-          until kubectl get pods -n kube-system -l k8s-app=metrics-server -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
-            if [ $ATTEMPTS -ge $MAX_ATTEMPTS]; then
-              echo "Metrics Server is not ready after $ATTEMPTS attempts."
-              kubectl describe deployment metrics-server -n kube-system
-              kubectl logs -l k8s-app=metrics-server -n kube-system
-              exit 1
-            fi
-            echo "Waiting for Metrics Server to be ready..."
-            ATTEMPTS=$((ATTEMPTS + 1))
-            sleep 30
-          done
-
-      - name: Install HorizontalPodAutoscaler CRD
-        run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/autoscaling/hpa-rbac.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/autoscaling/hpa-v2.yaml
-
-      - name: Helm install dry-run
-        run: helm install --dry-run todoapp ./helm-charts/todoapp
-
-      - name: Helm upgrade install
-        run: helm upgrade --install todoapp ./helm-charts/todoapp --atomic
-
-      - name: Verify deployment
-        run: kubectl get pods -n default
-
-      - name: Upload Kind Cluster Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: kind-artifacts
-          path: ./kind-artifacts
-
-  call-reusable-workflow-dev:
-    needs: deploy-to-kind
-    uses: ./.github/workflows/deploy-kind.yml
+  deploy-helm:
+    name: Deploy Helm
+    uses: ./.github/workflows/deploy.yml
+    needs: [helm-ci, docker-ci]
+    secrets: inherit
     with:
       environment: development
 
-  call-reusable-workflow-staging:
-    needs: deploy-to-kind
-    uses: ./.github/workflows/deploy-kind.yml
+  deploy-helm-staging:
+    name: Deploy Helm to staging
+    uses: ./.github/workflows/deploy.yml
+    needs: deploy-helm
+    secrets: inherit
     with:
       environment: staging
+      helm-values-path: ./todoapp/values/stg.yaml
+      helm-release-name: todoapp-staging
