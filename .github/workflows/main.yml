@@ -153,7 +153,7 @@ jobs:
           ATTEMPTS=0
           MAX_ATTEMPTS=20
           until kubectl get pods -n kube-system -l k8s-app=metrics-server -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do
-            if [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; then
+            if [ $ATTEMPTS -ge $MAX_ATTEMPTS]; then
               echo "Metrics Server is not ready after $ATTEMPTS attempts."
               kubectl describe deployment metrics-server -n kube-system
               kubectl logs -l k8s-app=metrics-server -n kube-system
@@ -166,8 +166,8 @@ jobs:
 
       - name: Install HorizontalPodAutoscaler CRD
         run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/metrics/hpa-rbac.yaml
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/metrics/hpa-v2.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/autoscaling/hpa-rbac.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controller/autoscaling/hpa-v2.yaml
 
       - name: Helm install dry-run
         run: helm install --dry-run todoapp ./helm-charts/todoapp
