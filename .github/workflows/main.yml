@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name}} -${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name }} -${{ github.sha }}
 
 on:
   push:
@@ -121,18 +121,27 @@ jobs:
 
   deploy-helm:
     name: Deploy Helm
-    uses: ./.github/workflows/deploy.yml
-    needs: [helm-ci, docker-ci]
-    secrets: inherit
-    with:
-      environment: development
+    needs: [docker-ci, helm-ci]
+    runs-on: ubuntu-latest
+    environment: development # Specifies the environment directly
+    steps:
+      - name: Download Helm Package
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-package
+          path: .
+
+      - name: Deploy to Development
+        run: helm upgrade --install todoapp ./todoapp/ -f ./todoapp/values.yaml --namespace development
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
 
   deploy-helm-staging:
     name: Deploy Helm to staging
-    uses: ./.github/workflows/deploy.yml
+    runs-on: ubuntu-latest
     needs: deploy-helm
-    secrets: inherit
-    with:
-      environment: staging
-      helm-values-path: ./todoapp/values/stg.yaml
-      helm-release-name: todoapp-staging
+    steps:
+      - name: Deploy to Staging
+        run: helm upgrade --install todoapp-staging ./todoapp/ -f ./todoapp/values/stg.yaml --namespace staging
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
