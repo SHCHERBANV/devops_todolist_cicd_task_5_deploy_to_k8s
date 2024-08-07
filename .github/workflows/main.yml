@@ -105,9 +105,9 @@ jobs:
         uses: azure/setup-helm@v4.2.0
 
       - name: set up kubectl
-        uses: azure/setup-kubectl@v1
+        uses: azure/setup-kubectl@v2
         with:
-          version: '1.18.8'
+          version: '1.20.0'
 
       - name: azure/login
         uses: azure/login@v1
@@ -118,7 +118,6 @@ jobs:
         with:
           cluster-name: ${{ secrets.AZURE_CLUSTER_NAME }}
           resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
-
 
       - name: Lint helm
         run: helm lint ./todoapp/
