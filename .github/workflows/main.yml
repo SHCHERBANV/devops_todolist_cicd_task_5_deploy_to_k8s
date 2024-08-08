@@ -146,5 +146,5 @@ jobs:
 
     - uses: azure/aks-set-context@v3
       with:
-        resource-group: ${{ vars. secrets.AZURE_RESOURCE_GROUP }}
-        cluster-name: ${{ vars.secrets.AZURE_CLUSTER_NAME }}
+        resource-group: ${{ vars.AZURE_RESOURCE_GROUP }}
+        cluster-name: ${{ vars.AZURE_CLUSTER_NAME }}
