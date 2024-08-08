@@ -152,7 +152,7 @@ jobs:
     - name: Deploy Helm to development
       run: |
        helm upgrade --install --atomic todoapp --wait --timeout 3600s --debug ./todoapp-0.1.0.tgz \
-        -f ./todoapp/values.yaml \
+        -f ./helm-charts/todoapp/values.yaml \
         --set mysql.secrets.MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} \
         --set todoapp.secrets.MYSQL_USER=${{ secrets.MYSQL_USER }} \
         --set todoapp.secrets.MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
