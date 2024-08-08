@@ -1,6 +1,6 @@
 name: python-deployment
 
-run-name: ${{ github.actor }} - ${{ github.ref_name }} -${{ github.sha }}
+run-name: ${{ github.actor }} - ${{ github.ref_name}} -${{ github.sha }}
 
 on:
   push:
@@ -64,99 +64,70 @@ jobs:
           path: ${{ github.workspace }}/helm-charts
 
   docker-ci:
-    name: Build and Push Docker Image
+    name: Build and Push Image
     runs-on: ubuntu-latest
     if: ${{ github.ref_name == 'main' }}
     needs: python-ci
     steps:
 
-      - uses: actions/download-artifact@v4
-        name: Download python artifacts
-        with:
-          name: python-artifacts
-          path: .
+    - uses: actions/download-artifact@v4
+      name: Download python artifacts
+      with:
+        name: python-artifacts
+        path: .
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          context: ./src
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        push: true
+        context: ./src
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DockerImageName }}:${{ github.sha }}
 
   helm-ci:
+
     runs-on: ubuntu-latest
     needs: python-ci
     if: github.ref_name == 'main'
     name: Helm CI
     steps:
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: helm-artifacts
-          path: .
+    - uses: actions/download-artifact@v4
+      with:
+        name: helm-artifacts
+        path: .
 
-      - name: Set Up Helm
-        uses: azure/setup-helm@v4.2.0
+    - name: Set Up Helm
+      uses: azure/setup-helm@v4.2.0
 
-      - uses: azure/setup-kubectl@v4
-        name: Set up Kubectl
+    - name: Lint helm
+      run: helm lint ./todoapp/
 
+    - name: Template Helm
+      run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
 
+    - name: Package Helm
+      run: helm package ./todoapp
 
-      - name: azure/login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Upload Helm Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: helm-package
+        path: ./*.tgz
 
-      - uses: azure/aks-set-context@v3
-        with:
-          cluster-name: ${{ secrets.AZURE_CLUSTER_NAME }}
-          resource-group: ${{ secrets.AZURE_RESOURCE_GROUP }}
-
-      - name: Lint helm
-        run: helm lint ./todoapp/
-
-      - name: Template Helm
-        run: helm template todoapp ./todoapp/ -f ./todoapp/values.yaml
-
-      - name: Package Helm
-        run: helm package ./todoapp
-
-      - name: Upload Helm Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: helm-package
-          path: ./*.tgz
 
   deploy-helm:
     name: Deploy Helm
+    runs-on: ubuntu-latest
     needs: [docker-ci, helm-ci]
-    runs-on: ubuntu-latest
-    environment: development # Specifies the environment directly
+    if: github.ref_name == 'main'
     steps:
-      - name: Download Helm Package
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-package
-          path: .
 
-      - name: Deploy to Development
-        run: helm upgrade --install todoapp ./todoapp/ -f ./todoapp/values.yaml --namespace development
-        env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
-
-  deploy-helm-staging:
-    name: Deploy Helm to staging
-    runs-on: ubuntu-latest
-    needs: deploy-helm
-    steps:
-      - name: Deploy to Staging
-        run: helm upgrade --install todoapp-staging ./todoapp/ -f ./todoapp/values/stg.yaml --namespace staging
-        env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+    - uses: actions/download-artifact@v4
+      with:
+        name: helm-package
